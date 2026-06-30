@@ -198,11 +198,13 @@ The following features are explicitly **not** part of the initial release:
 | Type | Description |
 |------|-------------|
 | **Constraint** | PostgreSQL is the only supported database engine |
+| **Constraint** | Prisma ORM is the data access layer (schema-first) |
 | **Constraint** | API-only — no server-rendered views |
 | **Constraint** | English-only — no i18n in v1.0 |
-| **Assumption** | Developers have Node.js v20+ and PostgreSQL v15+ installed |
+| **Assumption** | Developers have Node.js v20+ and Docker Desktop installed |
+| **Assumption** | PostgreSQL, Redis, and MinIO run via Docker Compose |
 | **Assumption** | Redis is available for caching (can degrade gracefully) |
-| **Assumption** | File uploads stored locally (no cloud storage in v1.0) |
+| **Assumption** | File uploads stored in MinIO (S3-compatible, swappable to AWS S3) |
 
 ---
 

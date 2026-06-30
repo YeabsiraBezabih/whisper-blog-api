@@ -22,7 +22,7 @@
 
 **Decision**: Use **NestJS 11** on top of Express.
 
-**Rationale**: NestJS enforces separation of concerns (modules, controllers, services) from day one. Its dependency injection system mirrors enterprise frameworks (Spring Boot, ASP.NET). The decorator-based approach maps naturally to TypeScript. The ecosystem (`@nestjs/passport`, `@nestjs/swagger`, `@nestjs/typeorm`) reduces integration boilerplate significantly.
+**Rationale**: NestJS enforces separation of concerns (modules, controllers, services) from day one. Its dependency injection system mirrors enterprise frameworks (Spring Boot, ASP.NET). The decorator-based approach maps naturally to TypeScript. The ecosystem (`@nestjs/passport`, `@nestjs/swagger`) reduces integration boilerplate significantly.
 
 **Consequences**: Higher initial learning curve, but cleaner codebase at scale. New engineers must learn NestJS module system before contributing.
 
@@ -47,7 +47,7 @@
 }
 ```
 
-**Rationale**: `strictNullChecks` catches null/undefined errors at compile time. `emitDecoratorMetadata` is required by NestJS DI and TypeORM. ES2023 target enables modern syntax without transpilation overhead.
+**Rationale**: `strictNullChecks` catches null/undefined errors at compile time. `emitDecoratorMetadata` is required by NestJS DI. ES2023 target enables modern syntax without transpilation overhead.
 
 **Future consideration**: Enable `"strict": true` fully once team is comfortable (adds `noImplicitAny`, `strictBindCallApply`).
 
@@ -73,26 +73,28 @@
 
 ---
 
-## ADR-004: TypeORM as the Object-Relational Mapper
+## ADR-004: Prisma as the Object-Relational Mapper
 
 **Date**: 2026-06-30 · **Status**: Accepted
 
-**Context**: We need an ORM that integrates natively with NestJS and supports TypeScript decorators.
+**Context**: We need an ORM that provides excellent TypeScript support, a clean migration system, and good developer experience for a PostgreSQL-backed API.
 
 **Options Considered**:
 | Option | Pros | Cons |
 |--------|------|------|
-| **TypeORM** | Native NestJS integration, decorator entities, migrations | Inconsistent API, some bugs in 0.3.x |
-| Prisma | Excellent DX, type-safe client, schema-first | Different paradigm, no decorator entities |
+| TypeORM | Native NestJS integration, decorator entities | Inconsistent API, bugs in 0.3.x, stale maintenance |
+| **Prisma** | Excellent DX, fully type-safe client, schema-first, auto migrations | Different paradigm (no decorators), requires codegen step |
 | MikroORM | Unit of work pattern, great TS support | Smaller ecosystem |
 | Drizzle | Lightweight, SQL-like syntax | Very new, no NestJS module |
 | Raw SQL (pg) | Full control | No migration system, manual mapping |
 
-**Decision**: Use **TypeORM 0.3.x** via `@nestjs/typeorm`.
+**Decision**: Use **Prisma 6.x** with `@prisma/client`.
 
-**Rationale**: TypeORM's decorator-based entity definitions align perfectly with NestJS's decorator-driven architecture. The `@nestjs/typeorm` package provides seamless module integration (`TypeOrmModule.forRoot()`, `TypeOrmModule.forFeature()`). Migration support is built-in.
+**Rationale**: Prisma's schema-first approach (`prisma/schema.prisma`) provides a single source of truth for the data model. The generated `PrismaClient` is fully type-safe — every query, relation, and filter is checked at compile time. Prisma's migration system (`prisma migrate dev`) is simpler and more reliable than TypeORM's. `prisma studio` provides a built-in database GUI.
 
-**Trade-off acknowledged**: TypeORM 0.3.x has known quirks. If migration to Prisma becomes desirable, the service layer abstraction means only repository calls need changing — controllers and DTOs remain untouched.
+**Integration with NestJS**: Prisma is injected as a NestJS provider via a `PrismaService` that extends `PrismaClient` and implements `OnModuleInit` for connection lifecycle management.
+
+**Trade-off acknowledged**: Prisma requires a codegen step (`prisma generate`) after every schema change. This is automated in the dev workflow and Docker build.
 
 ---
 
@@ -195,9 +197,9 @@ app.useGlobalPipes(new ValidationPipe({
 
 **Date**: 2026-06-30 · **Status**: Accepted
 
-**Decision**: Users and Posts use soft deletes (`@DeleteDateColumn()`) rather than hard deletes.
+**Decision**: Users and Posts use soft deletes (`deletedAt DateTime?` field) rather than hard deletes.
 
-**Rationale**: Soft deletes allow data recovery, audit trails, and prevent broken foreign key references. Queries automatically exclude soft-deleted records via TypeORM's built-in filtering.
+**Rationale**: Soft deletes allow data recovery, audit trails, and prevent broken foreign key references. Prisma middleware intercepts `delete` operations and converts them to `update` calls that set `deletedAt`. A second middleware on `findMany`/`findFirst` automatically filters out soft-deleted records.
 
 ---
 
@@ -206,10 +208,54 @@ app.useGlobalPipes(new ValidationPipe({
 **Date**: 2026-06-30 · **Status**: Accepted
 
 **Decision**: Use a multi-stage Dockerfile:
-- **Stage 1** (builder): Install deps, compile TypeScript
-- **Stage 2** (runner): Copy only `dist/` and production `node_modules`
+- **Stage 1** (builder): Install deps, generate Prisma client, compile TypeScript
+- **Stage 2** (runner): Copy only `dist/`, generated Prisma client, and production `node_modules`
 
 **Rationale**: Final image is ~150MB instead of ~800MB. No TypeScript compiler, no dev dependencies, no source code in production image.
+
+---
+
+## ADR-013: Docker Compose for Local Infrastructure
+
+**Date**: 2026-06-30 · **Status**: Accepted
+
+**Context**: The project depends on PostgreSQL, Redis, and MinIO. Installing these natively on each developer's machine is error-prone and version-inconsistent.
+
+**Decision**: Run all infrastructure services via **Docker Compose**. The NestJS API itself runs natively with `pnpm run start:dev` for hot-reload.
+
+**Services**:
+| Service | Image | Purpose |
+|---------|-------|---------|
+| postgres | `postgres:15-alpine` | Primary database |
+| redis | `redis:7-alpine` | Caching + rate limiting storage |
+| minio | `minio/minio:latest` | S3-compatible object storage |
+| minio-init | `minio/mc:latest` | One-shot bucket creation |
+
+**Rationale**: Docker Compose ensures every developer has identical infrastructure. `docker compose up -d` is one command to start everything. Volumes persist data across restarts. Health checks ensure services are ready before the API connects.
+
+**Consequences**: Docker Desktop must be installed. Port conflicts are possible if developers run local PostgreSQL/Redis — mitigated by documenting the required ports.
+
+---
+
+## ADR-014: MinIO for Object Storage (S3-Compatible)
+
+**Date**: 2026-06-30 · **Status**: Accepted
+
+**Context**: The Blog API needs file upload support (post thumbnails, user avatars). Storing files on the local filesystem is not scalable and breaks in containerized/multi-instance deployments.
+
+**Options Considered**:
+| Option | Pros | Cons |
+|--------|------|------|
+| Local filesystem | Simple, no setup | Not scalable, lost on container restart |
+| AWS S3 | Industry standard, scalable | Requires AWS account, costs money |
+| Cloudinary | Image-specific features | Vendor lock-in, pricing |
+| **MinIO** | S3-compatible, free, self-hosted, Docker-ready | Must self-host in production |
+
+**Decision**: Use **MinIO** in development (Docker), with the option to swap to AWS S3 in production by changing only environment variables.
+
+**Rationale**: MinIO implements the S3 API. We use `@aws-sdk/client-s3` (the official AWS SDK) to interact with it — the same code works against both MinIO and real S3. This gives us free local development with a zero-cost migration path to AWS.
+
+**File key pattern**: `{resource}/{id}/{filename}` (e.g., `posts/abc-123/thumbnail.webp`)
 
 ---
 

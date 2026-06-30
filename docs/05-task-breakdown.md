@@ -10,15 +10,15 @@
 
 > **Goal**: Working NestJS project with all tooling configured. Zero features, but the foundation is solid.
 
-- [ ] **T-001**: Install Node.js v20 LTS, pnpm, Git, PostgreSQL 15+, VS Code
+- [ ] **T-001**: Install Node.js v20 LTS, pnpm, Git, Docker Desktop, VS Code
 - [ ] **T-002**: Install VS Code extensions (ESLint, Prettier, REST Client, GitLens, NestJS Snippets, Prisma)
 - [ ] **T-003**: Install NestJS CLI globally (`pnpm install -g @nestjs/cli`)
 - [ ] **T-004**: Scaffold NestJS project (`nest new whisper-blog-api --package-manager pnpm`)
 - [ ] **T-005**: Verify: `pnpm run start:dev` → `localhost:3000` returns "Hello World"
 - [ ] **T-006**: Configure `.prettierrc` with project rules (singleQuote, trailingComma, printWidth)
 - [ ] **T-007**: Configure ESLint with `@typescript-eslint` rules
-- [ ] **T-008**: Create `.env.example` with all required env vars (empty values)
-- [ ] **T-009**: Create `.gitignore` (node_modules, dist, .env, uploads, coverage)
+- [ ] **T-008**: Create `.env.example` with all required env vars (see Tech Spec §7)
+- [ ] **T-009**: Create `.gitignore` (node_modules, dist, .env, coverage)
 - [ ] **T-010**: Initialize Git repo, make initial commit: "chore: scaffold NestJS project"
 - [ ] **T-011**: Create GitHub repository and push initial commit
 
@@ -30,51 +30,51 @@
 
 > **Goal**: Environment management, global pipes/filters/interceptors, and shared utilities — the "plumbing" every module will depend on.
 
-- [ ] **T-012**: Install `@nestjs/config` and configure `ConfigModule.forRoot({ isGlobal: true })`
-- [ ] **T-013**: Create `.env` file with all variables from `.env.example`
-- [ ] **T-014**: Create `src/config/env.validation.ts` — Joi schema validating all required env vars
-- [ ] **T-015**: Create `src/config/database.config.ts` — TypeORM config from env vars
-- [ ] **T-016**: Create `src/config/jwt.config.ts` — JWT secret + expiration from env vars
-- [ ] **T-017**: Create `src/common/enums/role.enum.ts` (USER, MODERATOR, ADMIN)
-- [ ] **T-018**: Create `src/common/enums/post-status.enum.ts` (DRAFT, PUBLISHED, ARCHIVED)
-- [ ] **T-019**: Create `src/common/filters/http-exception.filter.ts` — standardized error shape
-- [ ] **T-020**: Create `src/common/interceptors/transform.interceptor.ts` — wrap responses in `{ data, statusCode }`
-- [ ] **T-021**: Create `src/common/interceptors/logging.interceptor.ts` — log method, URL, duration
-- [ ] **T-022**: Create `src/common/dto/pagination-query.dto.ts` — page, limit, search, sortBy, order
-- [ ] **T-023**: Create `src/common/interfaces/paginated-result.interface.ts`
-- [ ] **T-024**: Register global pipes, filters, interceptors in `main.ts`
-- [ ] **T-025**: Verify: send a bad request → confirm standardized error response shape
+- [ ] **T-012**: Run `docker compose up -d` — start PostgreSQL, Redis, MinIO containers
+- [ ] **T-013**: Verify Docker services: `psql` connects, `redis-cli ping`, MinIO console at `localhost:9001`
+- [ ] **T-014**: Install `prisma @prisma/client` and initialize: `pnpm exec prisma init`
+- [ ] **T-015**: Create `src/prisma/prisma.service.ts` — extends PrismaClient, implements OnModuleInit
+- [ ] **T-016**: Create `src/prisma/prisma.module.ts` — global module exporting PrismaService
+- [ ] **T-017**: Install `@nestjs/config` and configure `ConfigModule.forRoot({ isGlobal: true })`
+- [ ] **T-018**: Create `.env` file with `DATABASE_URL` and all variables from `.env.example`
+- [ ] **T-019**: Create `src/config/env.validation.ts` — Joi schema validating all required env vars
+- [ ] **T-020**: Create `src/config/jwt.config.ts` — JWT secret + expiration from env vars
+- [ ] **T-021**: Create `src/config/minio.config.ts` — MinIO connection options from env vars
+- [ ] **T-022**: Create `src/common/filters/http-exception.filter.ts` — standardized error shape
+- [ ] **T-023**: Create `src/common/interceptors/transform.interceptor.ts` — wrap responses in `{ data, statusCode }`
+- [ ] **T-024**: Create `src/common/interceptors/logging.interceptor.ts` — log method, URL, duration
+- [ ] **T-025**: Create `src/common/dto/pagination-query.dto.ts` — page, limit, search, sortBy, order
+- [ ] **T-026**: Create `src/common/interfaces/paginated-result.interface.ts`
+- [ ] **T-027**: Register global pipes, filters, interceptors in `main.ts`
+- [ ] **T-028**: Verify: send a bad request → confirm standardized error response shape
 
-**Definition of Done**: Global validation, error formatting, and response wrapping work on the default Hello World endpoint.
+**Definition of Done**: Docker infra running, Prisma connected to PostgreSQL, global pipes/filters/interceptors working.
 
 ---
 
-## Phase 2 — Database & Users Module
+## Phase 2 — Prisma Schema & Users Module
 
-> **Goal**: PostgreSQL connected, User entity created, full CRUD for users with proper validation.
+> **Goal**: Prisma schema defined, User model created, first migration run, full CRUD for users with proper validation.
 
-- [ ] **T-026**: Install `@nestjs/typeorm typeorm pg`
-- [ ] **T-027**: Create PostgreSQL database: `whisper_blog_dev`
-- [ ] **T-028**: Configure `TypeOrmModule.forRoot()` in AppModule using `database.config.ts`
-- [ ] **T-029**: Verify: app starts and connects to DB (check logs)
-- [ ] **T-030**: Generate Users module: `nest g resource users --no-spec`
-- [ ] **T-031**: Create `src/users/entities/user.entity.ts` with all columns (see Tech Spec §2.2)
-- [ ] **T-032**: Create `src/users/dto/create-user.dto.ts` with class-validator decorators
-- [ ] **T-033**: Create `src/users/dto/update-user.dto.ts` using `PartialType(CreateUserDto)`
-- [ ] **T-034**: Implement `UsersService.create()` — hash password, save to DB
-- [ ] **T-035**: Implement `UsersService.findAll()` — with pagination support
-- [ ] **T-036**: Implement `UsersService.findOne(id)` — throw NotFoundException if missing
-- [ ] **T-037**: Implement `UsersService.findByEmail(email)` — for auth use later
-- [ ] **T-038**: Implement `UsersService.update(id, dto)` — partial update
-- [ ] **T-039**: Implement `UsersService.remove(id)` — soft delete
-- [ ] **T-040**: Wire controller routes: GET /users, GET /users/:id, POST /users, PATCH /users/:id, DELETE /users/:id
-- [ ] **T-041**: Apply `ParseUUIDPipe` to all `:id` params
-- [ ] **T-042**: Test all endpoints in Postman / REST Client
-- [ ] **T-043**: Generate and run first migration: `InitialSchema`
-- [ ] **T-044**: Set `synchronize: false` in database config
+- [ ] **T-029**: Define User model in `prisma/schema.prisma` (see Tech Spec §2)
+- [ ] **T-030**: Run first migration: `pnpm exec prisma migrate dev --name init`
+- [ ] **T-031**: Verify: tables created in PostgreSQL (use `prisma studio` or TablePlus)
+- [ ] **T-032**: Generate Users module: `nest g resource users --no-spec`
+- [ ] **T-033**: Create `src/users/dto/create-user.dto.ts` with class-validator decorators
+- [ ] **T-034**: Create `src/users/dto/update-user.dto.ts` using `PartialType(CreateUserDto)`
+- [ ] **T-035**: Inject `PrismaService` into `UsersService`
+- [ ] **T-036**: Implement `UsersService.create()` — hash password, `prisma.user.create()`
+- [ ] **T-037**: Implement `UsersService.findAll()` — with pagination via `prisma.user.findMany({ skip, take })`
+- [ ] **T-038**: Implement `UsersService.findOne(id)` — throw NotFoundException if missing
+- [ ] **T-039**: Implement `UsersService.findByEmail(email)` — for auth use later
+- [ ] **T-040**: Implement `UsersService.update(id, dto)` — `prisma.user.update()`
+- [ ] **T-041**: Implement `UsersService.remove(id)` — soft delete via `update({ deletedAt: new Date() })`
+- [ ] **T-042**: Wire controller routes: GET /users, GET /users/:id, POST /users, PATCH /users/:id, DELETE /users/:id
+- [ ] **T-043**: Apply `ParseUUIDPipe` to all `:id` params
+- [ ] **T-044**: Test all endpoints in Postman / REST Client
 - [ ] **T-045**: Write `users.service.spec.ts` — unit tests for all service methods
 
-**Definition of Done**: Full Users CRUD against real PostgreSQL, migrations working, unit tests passing.
+**Definition of Done**: Full Users CRUD against real PostgreSQL via Prisma, migrations working, unit tests passing.
 
 ---
 
@@ -82,23 +82,23 @@
 
 > **Goal**: Complete CRUD for blog posts with author relationship, slug generation, pagination, search, and filtering.
 
-- [ ] **T-046**: Generate Posts module: `nest g resource posts --no-spec`
-- [ ] **T-047**: Create `src/posts/entities/post.entity.ts` with all columns + relations
-- [ ] **T-048**: Create `src/posts/dto/create-post.dto.ts` with validation
-- [ ] **T-049**: Create `src/posts/dto/update-post.dto.ts` using PartialType
-- [ ] **T-050**: Implement slug generation utility (title → `my-first-post`)
-- [ ] **T-051**: Implement `PostsService.create(dto, authorId)` — generate slug, save with author
-- [ ] **T-052**: Implement `PostsService.findAll(query)` — pagination, search by title, sort, filter by status
-- [ ] **T-053**: Implement `PostsService.findOne(id)` — include author relation
-- [ ] **T-054**: Implement `PostsService.findBySlug(slug)` — alternative lookup
-- [ ] **T-055**: Implement `PostsService.update(id, dto)` — regenerate slug if title changed
-- [ ] **T-056**: Implement `PostsService.remove(id)` — soft delete
-- [ ] **T-057**: Wire controller routes with proper decorators
-- [ ] **T-058**: Generate migration: `CreatePostsTable`
+- [ ] **T-046**: Add Post model to `prisma/schema.prisma` with all fields + User relation (see Tech Spec §2)
+- [ ] **T-047**: Run migration: `pnpm exec prisma migrate dev --name add-posts`
+- [ ] **T-048**: Generate Posts module: `nest g resource posts --no-spec`
+- [ ] **T-049**: Create `src/posts/dto/create-post.dto.ts` with validation
+- [ ] **T-050**: Create `src/posts/dto/update-post.dto.ts` using PartialType
+- [ ] **T-051**: Implement slug generation utility (title → `my-first-post`)
+- [ ] **T-052**: Implement `PostsService.create(dto, authorId)` — generate slug, `prisma.post.create({ data: { ...dto, authorId } })`
+- [ ] **T-053**: Implement `PostsService.findAll(query)` — pagination, search by title, sort, filter by status
+- [ ] **T-054**: Implement `PostsService.findOne(id)` — include author relation via `prisma.post.findUnique({ include: { author: true } })`
+- [ ] **T-055**: Implement `PostsService.findBySlug(slug)` — alternative lookup
+- [ ] **T-056**: Implement `PostsService.update(id, dto)` — regenerate slug if title changed
+- [ ] **T-057**: Implement `PostsService.remove(id)` — soft delete
+- [ ] **T-058**: Wire controller routes with proper decorators
 - [ ] **T-059**: Test all endpoints in Postman
 - [ ] **T-060**: Write `posts.service.spec.ts` — unit tests
 
-**Definition of Done**: Posts CRUD with author relation, slug, pagination, search all working.
+**Definition of Done**: Posts CRUD with author relation, slug, pagination, search all working via Prisma.
 
 ---
 
@@ -153,40 +153,40 @@
 
 > **Goal**: Comments on posts, tags with M:N relationship to posts.
 
-- [ ] **T-090**: Generate Comments module: `nest g resource comments --no-spec`
-- [ ] **T-091**: Create Comment entity with author + post relations
-- [ ] **T-092**: Implement Comments CRUD (create, findByPost, update own, delete own/mod/admin)
-- [ ] **T-093**: Wire nested routes: `/posts/:postId/comments`
-- [ ] **T-094**: Generate Tags module: `nest g resource tags --no-spec`
-- [ ] **T-095**: Create Tag entity with M:N posts relation via join table
+- [ ] **T-090**: Add Comment and Tag models to `prisma/schema.prisma` (see Tech Spec §2)
+- [ ] **T-091**: Run migration: `pnpm exec prisma migrate dev --name add-comments-tags`
+- [ ] **T-092**: Generate Comments module: `nest g resource comments --no-spec`
+- [ ] **T-093**: Implement Comments CRUD (create, findByPost, update own, delete own/mod/admin)
+- [ ] **T-094**: Wire nested routes: `/posts/:postId/comments`
+- [ ] **T-095**: Generate Tags module: `nest g resource tags --no-spec`
 - [ ] **T-096**: Implement Tags CRUD (admin create/delete, public list)
 - [ ] **T-097**: Update CreatePostDto to accept `tagIds`
-- [ ] **T-098**: Update PostsService.create to attach tags
+- [ ] **T-098**: Update PostsService.create to connect tags via `prisma.post.create({ data: { tags: { connect: [...] } } })`
 - [ ] **T-099**: Add `GET /posts?tag=slug` filter support
-- [ ] **T-100**: Generate migrations for comments and tags tables
-- [ ] **T-101**: Test all endpoints, write unit tests
+- [ ] **T-100**: Test all endpoints, write unit tests
 
 **Definition of Done**: Comments and tags fully functional with proper permissions.
 
 ---
 
-## Phase 7 — File Uploads & Swagger
+## Phase 7 — File Uploads (MinIO) & Swagger
 
-> **Goal**: Post thumbnails, auto-generated API documentation.
+> **Goal**: Post thumbnails via MinIO S3-compatible storage, auto-generated API documentation.
 
-- [ ] **T-102**: Install `multer @types/multer`
-- [ ] **T-103**: Configure multer: destination, file size limit, allowed mimetypes
-- [ ] **T-104**: Implement `POST /posts/:id/thumbnail` with `@UseInterceptors(FileInterceptor('file'))`
-- [ ] **T-105**: Serve static files: `app.useStaticAssets('uploads')`
-- [ ] **T-106**: Install `@nestjs/swagger`
-- [ ] **T-107**: Configure SwaggerModule in `main.ts` (title, description, version, bearerAuth)
-- [ ] **T-108**: Decorate all DTOs with `@ApiProperty()` (description + example)
-- [ ] **T-109**: Decorate all controllers with `@ApiTags()`, `@ApiOperation()`, `@ApiResponse()`
-- [ ] **T-110**: Decorate protected routes with `@ApiBearerAuth()`
-- [ ] **T-111**: Verify: open `localhost:3000/api/docs` — all endpoints documented
-- [ ] **T-112**: Enable `ClassSerializerInterceptor` globally — verify password never in responses
+- [ ] **T-101**: Install `@aws-sdk/client-s3 @aws-sdk/s3-request-presigner`
+- [ ] **T-102**: Create `src/storage/storage.service.ts` — upload, delete, getPresignedUrl via S3Client
+- [ ] **T-103**: Create `src/storage/storage.module.ts` — inject MinIO config
+- [ ] **T-104**: Install `multer @types/multer` for multipart parsing
+- [ ] **T-105**: Implement `POST /posts/:id/thumbnail` — receive file via `FileInterceptor`, upload to MinIO
+- [ ] **T-106**: Store MinIO object key in Post.thumbnail field
+- [ ] **T-107**: Install `@nestjs/swagger`
+- [ ] **T-108**: Configure SwaggerModule in `main.ts` (title, description, version, bearerAuth)
+- [ ] **T-109**: Decorate all DTOs with `@ApiProperty()` (description + example)
+- [ ] **T-110**: Decorate all controllers with `@ApiTags()`, `@ApiOperation()`, `@ApiResponse()`
+- [ ] **T-111**: Decorate protected routes with `@ApiBearerAuth()`
+- [ ] **T-112**: Verify: open `localhost:3000/api/docs` — all endpoints documented
 
-**Definition of Done**: Swagger docs at `/api/docs`, file upload working, serialization correct.
+**Definition of Done**: Swagger docs at `/api/docs`, file upload to MinIO working, password never in responses.
 
 ---
 
@@ -235,19 +235,18 @@
 
 > **Goal**: Dockerized app, CI pipeline, deployed to cloud.
 
-- [ ] **T-136**: Create `Dockerfile` — multi-stage build (builder + runner)
-- [ ] **T-137**: Create `.dockerignore` (node_modules, .git, .env, uploads)
-- [ ] **T-138**: Create `docker-compose.yml` — api + postgres + redis services
-- [ ] **T-139**: Test: `docker compose up` — app connects to DB, all endpoints work
-- [ ] **T-140**: Create `.github/workflows/ci.yml` — lint + test on every push/PR
-- [ ] **T-141**: Create Postman collection: full E2E suite with test scripts
-- [ ] **T-142**: Export collection + environment as JSON, commit to repo
-- [ ] **T-143**: Install Newman, run collection from CLI
-- [ ] **T-144**: Deploy to Railway/Render — configure env vars, PostgreSQL addon
-- [ ] **T-145**: Run migrations on production database
-- [ ] **T-146**: Verify live URL responds, Swagger docs accessible
-- [ ] **T-147**: Update README: architecture, local setup, API docs link, live URL
-- [ ] **T-148**: Tag release: `git tag v1.0.0 && git push --tags`
+- [ ] **T-136**: Verify existing `Dockerfile` builds successfully: `docker build -t whisper-api .`
+- [ ] **T-137**: Uncomment API service in `docker-compose.yml`, test full stack: `docker compose up`
+- [ ] **T-138**: Verify: app connects to DB, Redis, and MinIO inside Docker network
+- [ ] **T-139**: Create `.github/workflows/ci.yml` — lint + test on every push/PR
+- [ ] **T-140**: Create Postman collection: full E2E suite with test scripts
+- [ ] **T-141**: Export collection + environment as JSON, commit to repo
+- [ ] **T-142**: Install Newman, run collection from CLI
+- [ ] **T-143**: Deploy to Railway/Render — configure env vars, PostgreSQL addon
+- [ ] **T-144**: Run migrations on production: `prisma migrate deploy`
+- [ ] **T-145**: Verify live URL responds, Swagger docs accessible
+- [ ] **T-146**: Update README: architecture, local setup (`docker compose up`), API docs link, live URL
+- [ ] **T-147**: Tag release: `git tag v1.0.0 && git push --tags`
 
 **Definition of Done**: App runs in Docker, CI passes, live URL accessible, README polished.
 
@@ -258,18 +257,18 @@
 | Phase | Tasks | Description | Status |
 |-------|-------|-------------|--------|
 | 0 | T-001 → T-011 | Project Bootstrap | ⬜ Not Started |
-| 1 | T-012 → T-025 | Configuration & Common | ⬜ Not Started |
-| 2 | T-026 → T-045 | Database & Users | ⬜ Not Started |
+| 1 | T-012 → T-028 | Docker Infra & Configuration | ⬜ Not Started |
+| 2 | T-029 → T-045 | Prisma Schema & Users | ⬜ Not Started |
 | 3 | T-046 → T-060 | Posts Module | ⬜ Not Started |
 | 4 | T-061 → T-081 | Authentication | ⬜ Not Started |
 | 5 | T-082 → T-089 | Authorization (RBAC) | ⬜ Not Started |
-| 6 | T-090 → T-101 | Comments & Tags | ⬜ Not Started |
-| 7 | T-102 → T-112 | Uploads & Swagger | ⬜ Not Started |
+| 6 | T-090 → T-100 | Comments & Tags | ⬜ Not Started |
+| 7 | T-101 → T-112 | MinIO Uploads & Swagger | ⬜ Not Started |
 | 8 | T-113 → T-126 | Performance & Security | ⬜ Not Started |
 | 9 | T-127 → T-135 | Testing | ⬜ Not Started |
-| 10 | T-136 → T-148 | DevOps & Deployment | ⬜ Not Started |
+| 10 | T-136 → T-147 | DevOps & Deployment | ⬜ Not Started |
 
-**Total**: 148 tasks across 11 phases
+**Total**: 147 tasks across 11 phases
 
 ---
 

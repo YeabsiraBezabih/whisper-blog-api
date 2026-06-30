@@ -12,11 +12,12 @@
 | Runtime | Node.js | 20 LTS | Long-term support, ES2023 features |
 | Language | TypeScript | 5.7+ | Type safety, decorator support |
 | Framework | NestJS | 11.x | Modular architecture, DI, enterprise patterns |
-| Database | PostgreSQL | 15+ | ACID compliance, JSON support |
-| ORM | TypeORM | 0.3.x | Decorator-based entities, migrations |
+| Database | PostgreSQL | 15+ | ACID compliance, JSON support (via Docker) |
+| ORM | Prisma | 6.x | Type-safe client, schema-first, auto migrations |
 | Auth | Passport.js + JWT | latest | Industry standard, strategy-based |
 | Validation | class-validator | latest | Decorator-based DTO validation |
-| Caching | Redis via cache-manager | latest | In-memory caching layer |
+| Caching | Redis | 7.x | In-memory caching layer (via Docker) |
+| Object Storage | MinIO | latest | S3-compatible file storage (via Docker) |
 | Docs | Swagger / OpenAPI 3.0 | latest | Auto-generated API docs |
 | Testing | Jest + Supertest | latest | Unit + integration + E2E |
 | Container | Docker + Docker Compose | latest | Reproducible environments |
@@ -32,56 +33,99 @@ users ──1:N──► posts ──1:N──► comments
   └──1:N──► comments
 ```
 
-### Enums
-```typescript
-enum Role { USER = 'user', MODERATOR = 'moderator', ADMIN = 'admin' }
-enum PostStatus { DRAFT = 'draft', PUBLISHED = 'published', ARCHIVED = 'archived' }
+### Prisma Schema (`prisma/schema.prisma`)
+
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  name               String    @db.VarChar(100)
+  password           String                          // bcrypt hash, never returned
+  bio                String?   @db.Text
+  avatar             String?                         // MinIO object key
+  role               Role      @default(USER)
+  tokenVersion       Int       @default(0)           // increment on logout
+  hashedRefreshToken String?                         // bcrypt hash
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?                       // soft delete
+
+  posts    Post[]
+  comments Comment[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Post {
+  id        String     @id @default(uuid())
+  title     String     @db.VarChar(255)
+  slug      String     @unique
+  content   String     @db.Text
+  thumbnail String?                                  // MinIO object key
+  status    PostStatus @default(DRAFT)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  deletedAt DateTime?                                // soft delete
+
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String @map("author_id")
+
+  comments Comment[]
+  tags     Tag[]
+
+  @@index([slug])
+  @@index([authorId])
+  @@map("posts")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String @map("author_id")
+
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId String @map("post_id")
+
+  @@map("comments")
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String   @unique @db.VarChar(50)
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  posts Post[]
+
+  @@map("tags")
+}
 ```
-
-### User Entity
-| Column | Type | Constraints | Notes |
-|--------|------|-------------|-------|
-| id | UUID | PK, auto-generated | |
-| email | VARCHAR(255) | UNIQUE, NOT NULL, indexed | lowercase |
-| name | VARCHAR(100) | NOT NULL | |
-| password | TEXT | NOT NULL | bcrypt hash, `@Exclude()` |
-| bio | TEXT | nullable | |
-| avatar | VARCHAR | nullable | file path |
-| role | ENUM(Role) | default: USER | |
-| tokenVersion | INT | default: 0 | increment on logout |
-| hashedRefreshToken | TEXT | nullable | bcrypt hash, `@Exclude()` |
-| createdAt | TIMESTAMP | auto | |
-| updatedAt | TIMESTAMP | auto | |
-| deletedAt | TIMESTAMP | nullable | soft delete |
-
-### Post Entity
-| Column | Type | Constraints | Notes |
-|--------|------|-------------|-------|
-| id | UUID | PK | |
-| title | VARCHAR(255) | NOT NULL | |
-| slug | VARCHAR | UNIQUE, indexed | auto from title |
-| content | TEXT | NOT NULL | |
-| thumbnail | VARCHAR | nullable | file path |
-| status | ENUM(PostStatus) | default: DRAFT | |
-| author_id | UUID | FK → users, NOT NULL | |
-| createdAt / updatedAt / deletedAt | TIMESTAMP | | soft delete |
-
-### Comment Entity
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | UUID | PK |
-| content | TEXT | NOT NULL |
-| author_id | UUID | FK → users |
-| post_id | UUID | FK → posts, CASCADE delete |
-| createdAt / updatedAt | TIMESTAMP | |
-
-### Tag Entity
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | UUID | PK |
-| name | VARCHAR(50) | UNIQUE |
-| slug | VARCHAR | UNIQUE |
-| createdAt | TIMESTAMP | |
 
 ---
 
@@ -202,22 +246,31 @@ Logout → Invalidate refresh token + increment tokenVersion
 ```bash
 NODE_ENV=development                    # development | production | test
 PORT=3000
-DATABASE_HOST=localhost
-DATABASE_PORT=5432
-DATABASE_NAME=whisper_blog_dev
-DATABASE_USERNAME=postgres
-DATABASE_PASSWORD=                      # .env only
-DATABASE_SYNCHRONIZE=false              # NEVER true in production
+
+# Database (Prisma uses a single connection string)
+DATABASE_URL=postgresql://whisper:whisper_secret@localhost:5432/whisper_blog_dev?schema=public
+
+# JWT
 JWT_SECRET=                             # min 32 chars
 JWT_ACCESS_EXPIRATION=15m
 JWT_REFRESH_EXPIRATION=7d
+
+# Redis (Docker: localhost:6379)
 REDIS_HOST=localhost
 REDIS_PORT=6379
+
+# MinIO / S3 (Docker: localhost:9000, Console: localhost:9001)
+MINIO_ENDPOINT=localhost
+MINIO_PORT=9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin123
+MINIO_BUCKET_NAME=whisper-uploads
+MINIO_USE_SSL=false
+
+# Rate Limiting
 THROTTLE_TTL=60
 THROTTLE_LIMIT=100
 THROTTLE_AUTH_LIMIT=10
-UPLOAD_DEST=./uploads
-UPLOAD_MAX_SIZE=2097152                 # 2 MB
 ```
 
 ---
@@ -262,4 +315,28 @@ UPLOAD_MAX_SIZE=2097152                 # 2 MB
 | GET /posts/:id | 120s | Write to that post |
 | GET /tags | 300s | Write to /tags |
 
-**Migrations**: Never `synchronize: true` in prod. Generate, don't hand-write. Immutable once committed. Name descriptively (`AddThumbnailToPost`).
+**Prisma Migrations**:
+| Command | Purpose |
+|---------|--------|
+| `pnpm exec prisma migrate dev --name <name>` | Create + apply a migration in development |
+| `pnpm exec prisma migrate deploy` | Apply pending migrations in production |
+| `pnpm exec prisma generate` | Regenerate Prisma Client after schema changes |
+| `pnpm exec prisma studio` | Open visual DB browser at localhost:5555 |
+| `pnpm exec prisma db seed` | Run the seed script |
+
+**Migration Rules**: Migrations are immutable once committed. Name descriptively (`add-thumbnail-to-post`). Always run `prisma generate` after schema changes.
+
+---
+
+## 11. Infrastructure (Docker Services)
+
+All infrastructure runs via `docker compose up -d`. No local installation of PostgreSQL, Redis, or MinIO required.
+
+| Service | Port | Purpose | Console |
+|---------|------|---------|---------|
+| PostgreSQL | 5432 | Primary database | psql or Prisma Studio |
+| Redis | 6379 | Caching + rate limiting | redis-cli |
+| MinIO (S3 API) | 9000 | File/image storage | — |
+| MinIO Console | 9001 | Web UI for MinIO | http://localhost:9001 |
+
+**File Storage**: Post thumbnails and user avatars are uploaded to MinIO via the `@aws-sdk/client-s3` package (MinIO is S3-compatible). Files are stored with keys like `posts/{postId}/thumbnail.webp` and served via presigned URLs or a public bucket policy.
