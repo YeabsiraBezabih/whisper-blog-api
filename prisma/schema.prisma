@@ -4,13 +4,14 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "./client"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
-  }
+}
 
 enum Role {
   USER
@@ -28,15 +29,15 @@ model User {
   id                 String    @id @default(uuid())
   email              String    @unique
   name               String    @db.VarChar(100)
-  password           String                          // bcrypt hash, never returned
+  password           String // bcrypt hash, never returned
   bio                String?   @db.Text
-  avatar             String?                         // MinIO object key
+  avatar             String? // MinIO object key
   role               Role      @default(USER)
-  tokenVersion       Int       @default(0)           // increment on logout
-  hashedRefreshToken String?                         // bcrypt hash
+  tokenVersion       Int       @default(0) // increment on logout
+  hashedRefreshToken String? // bcrypt hash
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
-  deletedAt          DateTime?                       // soft delete
+  deletedAt          DateTime? // soft delete
 
   posts    Post[]
   comments Comment[]
@@ -50,11 +51,11 @@ model Post {
   title     String     @db.VarChar(255)
   slug      String     @unique
   content   String     @db.Text
-  thumbnail String?                                  // MinIO object key
+  thumbnail String? // MinIO object key
   status    PostStatus @default(DRAFT)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
-  deletedAt DateTime?                                // soft delete
+  deletedAt DateTime? // soft delete
 
   author   User   @relation(fields: [authorId], references: [id])
   authorId String @map("author_id")
