@@ -5,9 +5,90 @@
 
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
+  output   = "./client"
 }
 
 datasource db {
   provider = "postgresql"
+  }
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  name               String    @db.VarChar(100)
+  password           String                          // bcrypt hash, never returned
+  bio                String?   @db.Text
+  avatar             String?                         // MinIO object key
+  role               Role      @default(USER)
+  tokenVersion       Int       @default(0)           // increment on logout
+  hashedRefreshToken String?                         // bcrypt hash
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?                       // soft delete
+
+  posts    Post[]
+  comments Comment[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Post {
+  id        String     @id @default(uuid())
+  title     String     @db.VarChar(255)
+  slug      String     @unique
+  content   String     @db.Text
+  thumbnail String?                                  // MinIO object key
+  status    PostStatus @default(DRAFT)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  deletedAt DateTime?                                // soft delete
+
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String @map("author_id")
+
+  comments Comment[]
+  tags     Tag[]
+
+  @@index([slug])
+  @@index([authorId])
+  @@map("posts")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String @map("author_id")
+
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId String @map("post_id")
+
+  @@map("comments")
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String   @unique @db.VarChar(50)
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  posts Post[]
+
+  @@map("tags")
 }
